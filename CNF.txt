@@ -1,0 +1,133 @@
+# ----------------------------------------------------------
+# Convert ∀x[¬∀y¬(Animal(y)∨Loves(x,y))∨∃yLoves(y,x)] to CNF
+# Fully algorithmic - No printing steps
+# ----------------------------------------------------------
+
+import copy
+
+# Utility for deep substitution
+def substitute(term, var, replacement):
+    """Replace variable var with replacement inside a term."""
+    if isinstance(term, str):
+        return replacement if term == var else term
+    elif isinstance(term, tuple):
+        return tuple(substitute(t, var, replacement) for t in term)
+    else:
+        return term
+
+
+# 1️⃣ Remove negations using equivalences
+def eliminate_negations(expr):
+    """Apply ¬∀y¬P(y) ≡ ∃y P(y) and ¬∃y P(y) ≡ ∀y ¬P(y)."""
+    if isinstance(expr, tuple):
+        op = expr[0]
+        if op == 'not':
+            sub = expr[1]
+            if isinstance(sub, tuple) and sub[0] == 'forall':
+                var, inner = sub[1], sub[2]
+                return ('exists', var, eliminate_negations(('not', inner)))
+            elif isinstance(sub, tuple) and sub[0] == 'exists':
+                var, inner = sub[1], sub[2]
+                return ('forall', var, eliminate_negations(('not', inner)))
+            elif isinstance(sub, tuple) and sub[0] == 'not':
+                return eliminate_negations(sub[1])
+            else:
+                return ('not', eliminate_negations(sub))
+        elif op in ['and', 'or']:
+            return (op, eliminate_negations(expr[1]), eliminate_negations(expr[2]))
+        elif op in ['forall', 'exists']:
+            return (op, expr[1], eliminate_negations(expr[2]))
+    return expr
+
+
+# 2️⃣ Move quantifiers to front (Prenex form)
+def move_quantifiers(expr):
+    if isinstance(expr, tuple):
+        op = expr[0]
+        if op in ['and', 'or']:
+            left = move_quantifiers(expr[1])
+            right = move_quantifiers(expr[2])
+            # If quantifiers exist in left or right, move them out
+            if isinstance(left, tuple) and left[0] in ['forall', 'exists']:
+                return (left[0], left[1], move_quantifiers((op, left[2], right)))
+            elif isinstance(right, tuple) and right[0] in ['forall', 'exists']:
+                return (right[0], right[1], move_quantifiers((op, left, right[2])))
+            else:
+                return (op, left, right)
+        elif op in ['forall', 'exists']:
+            return (op, expr[1], move_quantifiers(expr[2]))
+    return expr
+
+
+# 3️⃣ Skolemization
+def skolemize(expr, scope_vars=None):
+    """Remove existential quantifiers using Skolem functions."""
+    if scope_vars is None:
+        scope_vars = []
+    if isinstance(expr, tuple):
+        op = expr[0]
+        if op == 'forall':
+            return ('forall', expr[1], skolemize(expr[2], scope_vars + [expr[1]]))
+        elif op == 'exists':
+            func_name = f"f_{expr[1]}"
+            skolem_func = func_name + "(" + ",".join(scope_vars) + ")" if scope_vars else func_name
+            return skolemize(substitute(expr[2], expr[1], skolem_func), scope_vars)
+        elif op in ['and', 'or']:
+            return (op, skolemize(expr[1], scope_vars), skolemize(expr[2], scope_vars))
+    return expr
+
+
+# 4️⃣ Drop universal quantifiers
+def drop_universal(expr):
+    if isinstance(expr, tuple) and expr[0] == 'forall':
+        return drop_universal(expr[2])
+    elif isinstance(expr, tuple) and expr[0] in ['and', 'or']:
+        return (expr[0], drop_universal(expr[1]), drop_universal(expr[2]))
+    return expr
+
+
+# 5️⃣ Distribute ∨ over ∧ to get CNF
+def distribute_or_over_and(expr):
+    if not isinstance(expr, tuple):
+        return expr
+    op = expr[0]
+    if op == 'or':
+        a, b = expr[1], expr[2]
+        if isinstance(a, tuple) and a[0] == 'and':
+            return ('and',
+                    distribute_or_over_and(('or', a[1], b)),
+                    distribute_or_over_and(('or', a[2], b)))
+        elif isinstance(b, tuple) and b[0] == 'and':
+            return ('and',
+                    distribute_or_over_and(('or', a, b[1])),
+                    distribute_or_over_and(('or', a, b[2])))
+        else:
+            return ('or', distribute_or_over_and(a), distribute_or_over_and(b))
+    elif op == 'and':
+        return ('and', distribute_or_over_and(expr[1]), distribute_or_over_and(expr[2]))
+    else:
+        return expr
+
+
+# 6️⃣ Convert to CNF
+def to_cnf(expr):
+    expr = eliminate_negations(expr)
+    expr = move_quantifiers(expr)
+    expr = skolemize(expr)
+    expr = drop_universal(expr)
+    expr = distribute_or_over_and(expr)
+    return expr
+
+
+# ----------------------------------------------------------
+# Test Example: ∀x[¬∀y¬(Animal(y)∨Loves(x,y))∨∃yLoves(y,x)]
+# ----------------------------------------------------------
+expr = ('forall', 'x',
+        ('or',
+            ('not', ('forall', 'y', ('not', ('or', ('Animal', 'y'), ('Loves', 'x', 'y'))))),
+            ('exists', 'y', ('Loves', 'y', 'x'))
+        )
+)
+
+cnf = to_cnf(expr)
+print("Final CNF Structure:\n", cnf)
