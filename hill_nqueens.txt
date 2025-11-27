@@ -1,0 +1,100 @@
+from random import randint
+
+def configureUserInput(board, state, N):
+    while True:
+        try:
+            initial_positions = input(f"Enter the initial row positions for queens (space-separated, 0 to {N-1}): ")
+            initial_positions = list(map(int, initial_positions.split()))
+            if len(initial_positions) == N and all(0 <= x < N for x in initial_positions):
+                for i in range(N):
+                    state[i] = initial_positions[i]
+                    board[state[i]][i] = 1
+                break
+            else:
+                print(f"Please enter exactly {N} valid row positions between 0 and {N-1}.")
+        except ValueError:
+            print("Invalid input. Please enter integers.")
+
+def printBoard(board):
+    for row in board:
+        print(*row)
+
+def compareStates(state1, state2):
+    return state1 == state2
+
+def fill(board, value):
+    for i in range(len(board)):
+        for j in range(len(board)):
+            board[i][j] = value
+
+def calculateObjective(board, state, N):
+    attacking = 0
+    for i in range(N):
+        row = state[i]
+        col = i
+        for j in range(i+1, N):
+            other_row = state[j]
+            other_col = j
+            if other_row == row or abs(other_row - row) == abs(other_col - col):
+                attacking += 1
+    return attacking
+
+def generateBoard(board, state, N):
+    fill(board, 0)
+    for i in range(N):
+        board[state[i]][i] = 1
+
+def copyState(state1, state2):
+    for i in range(len(state2)):
+        state1[i] = state2[i]
+
+def getNeighbour(board, state, N):
+    opState = state[:]
+    generateBoard(board, opState, N)
+    opObjective = calculateObjective(board, opState, N)
+
+    for col in range(N):
+        for row in range(N):
+            if row != state[col]:
+                tempState = state[:]
+                tempState[col] = row
+                generateBoard(board, tempState, N)
+                tempObjective = calculateObjective(board, tempState, N)
+                if tempObjective < opObjective:
+                    opObjective = tempObjective
+                    opState = tempState[:]
+    copyState(state, opState)
+    generateBoard(board, state, N)
+
+def hillClimbing(board, state, N):
+    neighbourState = state[:]
+    generateBoard(board, neighbourState, N)
+
+    while True:
+        print("\nCurrent state:")
+        printBoard(board)
+        print(f"Number of attacking pairs: {calculateObjective(board, state, N)}")
+        
+        copyState(state, neighbourState)
+        generateBoard(board, state, N)
+
+        getNeighbour(board, neighbourState, N)
+
+        if compareStates(state, neighbourState):
+            print("\nFinal board with minimum conflicts:")
+            printBoard(board)
+            print(f"Number of attacking pairs: {calculateObjective(board, state, N)}")
+            break
+
+def main():
+    N = int(input("Enter number of queens (N): "))
+    board = [[0 for _ in range(N)] for _ in range(N)]
+    state = [0] * N
+
+    print("Enter initial positions for queens ")
+    configureUserInput(board, state, N)
+
+    hillClimbing(board, state, N)
+
+if __name__ == "__main__":
+    main()
