@@ -1,0 +1,85 @@
+import random
+import math
+
+class SimulatedAnnealing:
+    def __init__(self, N, initial_temp=10000, cooling_rate=0.999):
+        self.N = N  # Size of the board
+        self.initial_temp = initial_temp  # Initial temperature
+        self.cooling_rate = cooling_rate  # Cooling rate
+        self.state = self.random_state()  # Initial state
+
+    def random_state(self):
+        """ Generate a random state with one queen per column. """
+        return [random.randint(0, self.N - 1) for _ in range(self.N)]
+
+    def calculate_conflicts(self, state):
+        """ Calculate the number of pairs of queens that are attacking each other. """
+        conflicts = 0
+        for i in range(self.N):
+            for j in range(i + 1, self.N):
+                if state[i] == state[j] or abs(state[i] - state[j]) == abs(i - j):
+                    conflicts += 1
+        return conflicts
+
+    def get_neighbors(self, state):
+        """ Generate neighboring states by moving one queen to a random new position. """
+        neighbors = []
+        for i in range(self.N):
+            new_state = state[:]
+            new_pos = random.randint(0, self.N - 1)
+            while new_pos == new_state[i]:  # Prevent moving the queen to the same row
+                new_pos = random.randint(0, self.N - 1)
+            new_state[i] = new_pos
+            neighbors.append(new_state)
+        return neighbors
+
+    def acceptance_probability(self, current_conflicts, neighbor_conflicts, temp):
+        """ Calculate the probability of accepting a worse solution. """
+        if neighbor_conflicts < current_conflicts:
+            return 1.0
+        else:
+            return math.exp((current_conflicts - neighbor_conflicts) / temp)
+
+    def simulated_annealing(self):
+        """ Perform the simulated annealing process. """
+        current_state = self.state
+        current_conflicts = self.calculate_conflicts(current_state)
+        temp = self.initial_temp
+
+        print(f"Initial State: {current_state}")
+        print(f"Initial Conflicts: {current_conflicts}")
+
+        while temp > 1:
+            neighbors = self.get_neighbors(current_state)
+            next_state = random.choice(neighbors)
+            next_conflicts = self.calculate_conflicts(next_state)
+
+            # If the next state is better or with some probability, accept the worse state
+            if self.acceptance_probability(current_conflicts, next_conflicts, temp) > random.random():
+                current_state = next_state
+                current_conflicts = next_conflicts
+
+            # Cooling the system down
+            temp *= self.cooling_rate
+
+            print(f"Temp: {temp:.4f} | Conflicts: {current_conflicts} | State: {current_state}")
+
+            # If we have found a solution (0 conflicts), stop the process
+            if current_conflicts == 0:
+                print("Solution found!")
+                break
+
+        return current_state, current_conflicts
+
+
+# Driver code
+if __name__ == "__main__":
+    try:
+        N = int(input("Enter the number of queens (N): "))
+        sa = SimulatedAnnealing(N)
+
+        final_state, final_conflicts = sa.simulated_annealing()
+        print(f"\nFinal State: {final_state}")
+        print(f"Final Conflicts: {final_conflicts}")
+    except ValueError:
+        print("Please enter a valid number for N.")
